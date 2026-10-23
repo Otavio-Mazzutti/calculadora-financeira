@@ -11,7 +11,7 @@ interface RateSelectorProps {
   placeholder?: string;
 }
 
-const TIME_UNITS: TimeUnit[] = ['dia', 'mes', 'ano'];
+const TIME_UNITS: TimeUnit[] = ['dia', 'mes', 'semestre', 'ano'];
 
 function RateSelector({
   id,

@@ -12,11 +12,17 @@ export function decimalToPercent(decimal: number): number {
 export const UNIT_IN_DAYS: Record<TimeUnit, number> = {
   dia: 1,
   mes: 30,
+  semestre: 180,
   ano: 360,
 };
 
 export function convertRate(rate: number, fromUnit: TimeUnit, toUnit: TimeUnit): number {
   return rate * (UNIT_IN_DAYS[toUnit] / UNIT_IN_DAYS[fromUnit]);
+}
+
+export function convertRateComposta(rate: number, fromUnit: TimeUnit, toUnit: TimeUnit): number {
+  const ratio = UNIT_IN_DAYS[toUnit] / UNIT_IN_DAYS[fromUnit];
+  return Math.pow(1 + rate, ratio) - 1;
 }
 
 export function calculateMontante(principal: number, rate: number, time: number): number {
@@ -61,6 +67,26 @@ export function calculateTaxaDescontoComercial(
   time: number,
 ): number {
   return (nominal - valorAtual) / (nominal * time);
+}
+
+export function calculateMontanteComposto(principal: number, rate: number, time: number): number {
+  return principal * Math.pow(1 + rate, time);
+}
+
+export function calculateCapitalComposto(montante: number, rate: number, time: number): number {
+  return montante / Math.pow(1 + rate, time);
+}
+
+export function calculateJurosComposto(principal: number, rate: number, time: number): number {
+  return principal * (Math.pow(1 + rate, time) - 1);
+}
+
+export function calculateTaxaComposta(principal: number, montante: number, time: number): number {
+  return Math.pow(montante / principal, 1 / time) - 1;
+}
+
+export function calculateTempoComposto(principal: number, montante: number, rate: number): number {
+  return Math.log(montante / principal) / Math.log(1 + rate);
 }
 
 export function formatCurrency(value: number): string {

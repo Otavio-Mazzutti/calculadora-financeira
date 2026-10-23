@@ -4,18 +4,24 @@ import InputField from './InputField';
 import RateSelector from './RateSelector';
 import UnitField from './UnitField';
 import Result from './Result';
-import { CALCULATION_OPTIONS } from '../types/financial';
-import type { CalculationType, FieldConfig, TimeUnit } from '../types/financial';
+import { CALCULATION_OPTIONS, REGIME_OPTIONS } from '../types/financial';
+import type { CalculationType, FieldConfig, Regime, TimeUnit } from '../types/financial';
 import {
   calculateCapital,
+  calculateCapitalComposto,
   calculateDescontoComercial,
   calculateJuros,
+  calculateJurosComposto,
   calculateMontante,
+  calculateMontanteComposto,
   calculateTaxa,
+  calculateTaxaComposta,
   calculateTaxaDescontoComercial,
   calculateTempo,
+  calculateTempoComposto,
   calculateValorAtualComercial,
   convertRate,
+  convertRateComposta,
   percentToDecimal,
 } from '../services/financial';
 
@@ -147,6 +153,88 @@ const CALCULATION_DEFINITIONS: Record<CalculationType, CalculationDefinition> = 
     resultUnitFieldKey: 'time',
     compute: (values) => calculateTaxa(values.atual, values.nominal, values.time),
   },
+  montanteComposto: {
+    fields: [
+      { key: 'vp', label: 'Capital (VP)', kind: 'money' },
+      { key: 'rate', label: 'Taxa (i)', kind: 'rate' },
+      { key: 'time', label: 'Tempo (n)', kind: 'time' },
+    ],
+    resultLabel: 'Montante (VF)',
+    resultKind: 'money',
+    compute: (values, units) => {
+      const rate = convertRateComposta(percentToDecimal(values.rate), units.rate, units.time);
+      return calculateMontanteComposto(values.vp, rate, values.time);
+    },
+  },
+  capitalComposto: {
+    fields: [
+      { key: 'vf', label: 'Montante (VF)', kind: 'money' },
+      { key: 'rate', label: 'Taxa (i)', kind: 'rate' },
+      { key: 'time', label: 'Tempo (n)', kind: 'time' },
+    ],
+    resultLabel: 'Capital (VP)',
+    resultKind: 'money',
+    compute: (values, units) => {
+      const rate = convertRateComposta(percentToDecimal(values.rate), units.rate, units.time);
+      return calculateCapitalComposto(values.vf, rate, values.time);
+    },
+  },
+  jurosComposto: {
+    fields: [
+      { key: 'vp', label: 'Capital (VP)', kind: 'money' },
+      { key: 'rate', label: 'Taxa (i)', kind: 'rate' },
+      { key: 'time', label: 'Tempo (n)', kind: 'time' },
+    ],
+    resultLabel: 'Juros (J)',
+    resultKind: 'money',
+    compute: (values, units) => {
+      const rate = convertRateComposta(percentToDecimal(values.rate), units.rate, units.time);
+      return calculateJurosComposto(values.vp, rate, values.time);
+    },
+  },
+  taxaComposta: {
+    fields: [
+      { key: 'vp', label: 'Capital (VP)', kind: 'money' },
+      { key: 'vf', label: 'Montante (VF)', kind: 'money' },
+      { key: 'time', label: 'Tempo (n)', kind: 'time' },
+    ],
+    resultLabel: 'Taxa (i)',
+    resultKind: 'percentage',
+    resultUnitFieldKey: 'time',
+    compute: (values) => calculateTaxaComposta(values.vp, values.vf, values.time),
+  },
+  tempoComposto: {
+    fields: [
+      { key: 'vp', label: 'Capital (VP)', kind: 'money' },
+      { key: 'vf', label: 'Montante (VF)', kind: 'money' },
+      { key: 'rate', label: 'Taxa (i)', kind: 'rate' },
+    ],
+    resultLabel: 'Tempo (n)',
+    resultKind: 'time',
+    resultUnitFieldKey: 'rate',
+    compute: (values) => calculateTempoComposto(values.vp, values.vf, percentToDecimal(values.rate)),
+  },
+  conversaoComposta: {
+    fields: [
+      { key: 'rate', label: 'Taxa Efetiva (i)', kind: 'rate' },
+      { key: 'targetUnit', label: 'Converter para', kind: 'unit' },
+    ],
+    resultLabel: 'Taxa Efetiva Equivalente',
+    resultKind: 'percentage',
+    resultUnitFieldKey: 'targetUnit',
+    compute: (values, units) =>
+      convertRateComposta(percentToDecimal(values.rate), units.rate, units.targetUnit),
+  },
+  taxaNominalEfetiva: {
+    fields: [
+      { key: 'rate', label: 'Taxa Nominal (ik)', kind: 'rate' },
+      { key: 'targetUnit', label: 'Período de Capitalização', kind: 'unit' },
+    ],
+    resultLabel: 'Taxa Efetiva (Proporcional)',
+    resultKind: 'percentage',
+    resultUnitFieldKey: 'targetUnit',
+    compute: (values, units) => convertRate(percentToDecimal(values.rate), units.rate, units.targetUnit),
+  },
 };
 
 const DEFAULT_UNIT: TimeUnit = 'mes';
@@ -162,6 +250,9 @@ function buildInitialUnits(fields: FieldConfig[]): Record<string, TimeUnit> {
 }
 
 function Calculator() {
+  const [regime, setRegime] = useState<Regime>('simples');
+  const optionsForRegime = CALCULATION_OPTIONS.filter((option) => option.regime === regime);
+
   const [calculationType, setCalculationType] = useState<CalculationType>('montante');
   const definition = CALCULATION_DEFINITIONS[calculationType];
 
@@ -179,6 +270,14 @@ function Calculator() {
     setUnits(buildInitialUnits(CALCULATION_DEFINITIONS[type].fields));
     setResult(null);
     setError(null);
+  }
+
+  function handleRegimeChange(newRegime: Regime) {
+    setRegime(newRegime);
+    const firstOption = CALCULATION_OPTIONS.find((option) => option.regime === newRegime);
+    if (firstOption) {
+      handleCalculationTypeChange(firstOption.value);
+    }
   }
 
   function handleFieldChange(key: string, value: string) {
@@ -270,13 +369,28 @@ function Calculator() {
       <h1>Calculadora Financeira</h1>
 
       <div className="field">
+        <label htmlFor="regime">Capitalização</label>
+        <select
+          id="regime"
+          value={regime}
+          onChange={(event) => handleRegimeChange(event.target.value as Regime)}
+        >
+          {REGIME_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="field">
         <label htmlFor="calculation-type">O que deseja calcular?</label>
         <select
           id="calculation-type"
           value={calculationType}
           onChange={(event) => handleCalculationTypeChange(event.target.value as CalculationType)}
         >
-          {CALCULATION_OPTIONS.map((option) => (
+          {optionsForRegime.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>

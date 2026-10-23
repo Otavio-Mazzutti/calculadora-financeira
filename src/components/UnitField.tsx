@@ -8,7 +8,7 @@ interface UnitFieldProps {
   onChange: (unit: TimeUnit) => void;
 }
 
-const TIME_UNITS: TimeUnit[] = ['dia', 'mes', 'ano'];
+const TIME_UNITS: TimeUnit[] = ['dia', 'mes', 'semestre', 'ano'];
 
 function UnitField({ id, label, value, onChange }: UnitFieldProps) {
   return (
